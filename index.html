@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lockscreen</title>
+  <meta name="viewport" content="width=320, initial-scale=1.0, user-scalable=no" />
+
+  <!-- PWA basics -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#202d44" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <style>
+    :root {
+      --fg: #ffffff;
+      --accent: #5a6fd6;
+      --warn: #fe5050;
+      --hint: #ffe070;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100vw;
+      background: url('https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=720&q=80') center center / cover no-repeat;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      overflow: hidden;
+      position: relative;
+      transition: background 0.7s;
+      color: var(--fg);
+    }
+
+    /* Remove full top bar */
+    .overlay {
+      background: linear-gradient(120deg, rgba(30, 40, 80, 0.48) 10%, rgba(10, 18, 35, 0.8) 100%);
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+
+    .lockscreen-container {
+      position: absolute;
+      top: 62%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 320px;
+      max-width: 96vw;
+      min-width: 230px;
+      text-align: center;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pin-visual {
+      width: 100%;
+      max-width: 320px;
+      padding: 8px 6px 4px;
+      margin-bottom: 8px;
+      user-select: none;
+    }
+    .pin-numberline {
+      font-size: 2.1rem;
+      font-weight: 600;
+      letter-spacing: 4px;
+      text-align: center;
+      min-height: 42px;
+      color: var(--fg);
+      text-shadow: 0 0 6px #002, 0 0 2px #0ff6;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .underline {
+      width: 100%;
+      height: 2px;
+      margin: 6px auto 10px;
+      background: linear-gradient(90deg, transparent 5%, #4cfada44 20%, #4cfada66 50%, #4cfada44 80%, transparent 95%);
+      border-radius: 2px;
+    }
+
+    .status-msg {
+      min-height: 22px;
+      margin: 6px 0 10px;
+      color: var(--warn);
+      font-weight: 700;
+      text-shadow: 0 1px 2px #000;
+      font-size: 1.05rem;
+      letter-spacing: .6px;
+      text-align: center;
+      opacity: .95;
+    }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px 18px;
+      margin-bottom: 16px;
+      justify-items: center;
+      align-items: center;
+      width: 100%;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .key {
+      background: rgba(255,255,255,0.19);
+      color: #fff;
+      border: none; border-radius: 50%;
+      height: 58px; width: 58px;
+      font-size: 1.6rem; font-weight: 400;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.22);
+      outline: none;
+      transition: background 0.22s, box-shadow 0.16s, transform 0.11s, color 0.17s;
+      cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .key:active, .key.clicked {
+      background: radial-gradient(circle at 60% 40%, #33aaff44 0%, #fff2 100%);
+      box-shadow: 0 0 18px #00ffe5cc, 0 2px 12px #000b;
+      color: #88faff; transform: scale(0.95);
+    }
+    .key.cut { font-size: 1.7rem; }
+    .key.ok {
+      background: var(--accent);
+      color: #fff; font-size: 1.15rem; font-weight: bold; letter-spacing: 1px;
+    }
+    .key.ok:active, .key.ok.clicked { background: #7ed9ce; color: #202d44; }
+
+    .actions {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 10px; color: #fff; font-size: 1.05rem; opacity: 0.88;
+      width: 100%; max-width: 320px;
+    }
+
+    /* Secret dot - smaller + ultra light */
+    .secret-dot {
+      position: absolute; top: 10px; right: 12px;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer; z-index: 10;
+      opacity: 0.4;
+    }
+
+    .reveal-popup {
+      position: fixed; top: 66px; right: 12px;
+      background: rgba(20,32,32,0.96); color: #fff;
+      padding: 10px 14px; border-radius: 10px; box-shadow: 0 4px 18px #000a;
+      font-size: 1.1rem; z-index: 999; letter-spacing: 3px; text-align: center; user-select: all; min-width: 80px;
+      animation: fadeIn .3s;
+    }
+    @keyframes fadeIn { from {opacity:0; transform: translateY(-16px)} to {opacity:1; transform: translateY(0)} }
+
+    @media (max-width: 400px) {
+      .lockscreen-container { top: 60%; width: 99vw; }
+      .pin-numberline { font-size: 1.6rem; }
+      .key { height: 48px; width: 48px; font-size: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay"></div>
+
+  <!-- Secret dot -->
+  <div class="secret-dot" id="secretDot"></div>
+
+  <div class="lockscreen-container">
+    <div class="pin-visual" aria-live="polite">
+      <div id="pinLine" class="pin-numberline"> </div>
+      <div class="underline"></div>
+    </div>
+
+    <div class="status-msg" id="statusMsg"></div>
+    <div class="keypad" id="keypad"></div>
+
+    <div class="actions">
+      <span id="emergencyBtn">EMERGENCY</span>
+      <span id="backBtn">Back</span>
+    </div>
+  </div>
+
+  <div class="reveal-popup" id="revealPopup" style="display:none;">
+    Secret PIN: <span id="revealedPin"></span>
+  </div>
+
+  <audio id="clickSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b9e1e5d.mp3" preload="auto"></audio>
+
+  <script>
+    let currentInput = "";
+    let savedPin = "";
+
+    const pinLine    = document.getElementById('pinLine');
+    const statusMsg  = document.getElementById('statusMsg');
+    const keypad     = document.getElementById('keypad');
+    const revealPopup= document.getElementById('revealPopup');
+    const revealedPin= document.getElementById('revealedPin');
+    const secretDot  = document.getElementById('secretDot');
+    const clickSound = document.getElementById('clickSound');
+
+    const keys = ["1","2","3","4","5","6","7","8","9","CUT","0","OK"];
+
+    function updatePinLine() {
+      pinLine.textContent = currentInput.split("").join(" ");
+    }
+
+    function renderKeypad() {
+      keypad.innerHTML = "";
+      keys.forEach(k => {
+        let btn = document.createElement("button");
+        btn.className = "key";
+        if (k === "CUT") {
+          btn.classList.add("cut");
+          btn.innerHTML = "⌫";
+          btn.title = "Delete";
+          btn.onclick = () => {
+            if (currentInput.length > 0) {
+              currentInput = currentInput.slice(0, -1);
+              updatePinLine();
+              statusMsg.textContent = "";
+              playClick(btn);
+            }
+          }
+        } else if (k === "OK") {
+          btn.classList.add("ok");
+          btn.innerHTML = "OK";
+          btn.title = "OK";
+          btn.onclick = onOkPress;
+        } else {
+          btn.textContent = k;
+          btn.onclick = () => {
+            if (currentInput.length < 6) {
+              currentInput += k;
+              updatePinLine();
+              statusMsg.textContent = "";
+              playClick(btn);
+            }
+          }
+        }
+        keypad.appendChild(btn);
+      });
+    }
+
+    function playClick(btn) {
+      btn.classList.add('clicked');
+      setTimeout(() => btn.classList.remove('clicked'), 180);
+      try { clickSound.currentTime = 0; clickSound.play(); } catch(e){}
+      vibrate(33);
+    }
+
+    function onOkPress(e) {
+      playClick(e.target);
+
+      if (!(currentInput.length === 4 || currentInput.length === 6)) {
+        statusMsg.textContent = "Enter 4 or 6 digit PIN";
+        statusMsg.style.color = "#ffe070";
+        vibrate(120);
+        return;
+      }
+
+      savedPin = currentInput;
+      statusMsg.textContent = "Wrong Password!";
+      statusMsg.style.color = "#fe5050";
+      vibrate([80,60,80]);
+
+      setTimeout(() => {
+        currentInput = "";
+        updatePinLine();
+      }, 700);
+    }
+
+    let popupTimeout;
+    secretDot.onclick = function() {
+      if (!savedPin) {
+        statusMsg.textContent = "No PIN saved yet!";
+        statusMsg.style.color = "#ffe070";
+        vibrate(60);
+        return;
+      }
+      revealedPin.textContent = savedPin;
+      revealPopup.style.display = "block";
+      clearTimeout(popupTimeout);
+      popupTimeout = setTimeout(() => { revealPopup.style.display = "none"; }, 3500);
+    };
+    revealPopup.onclick = function() { revealPopup.style.display = "none"; };
+
+    document.getElementById('emergencyBtn').onclick = function() {
+      statusMsg.textContent = "Emergency call not implemented!";
+      statusMsg.style.color = "#ffe070";
+      vibrate(60);
+    };
+    document.getElementById('backBtn').onclick = function() {
+      currentInput = "";
+      updatePinLine();
+      statusMsg.textContent = "";
+    };
+
+    function vibrate(pattern) {
+      if (window.navigator.vibrate) window.navigator.vibrate(pattern);
+    }
+
+    updatePinLine();
+    renderKeypad();
+    statusMsg.textContent = "";
+
+    secretDot.oncontextmenu = function(e) { e.preventDefault(); secretDot.onclick(); return false; };
+    window.onunload = window.onbeforeunload = function() { savedPin = ""; };
+  </script>
+</body>
+</html>
